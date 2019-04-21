@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 # -*- encoding: utf-8 -*-
 
-import functools
 import os
 
 import numpy as np
@@ -12,26 +11,6 @@ from torch.nn import init
 from torch.optim import lr_scheduler
 
 import util
-
-
-def get_norm_layer(norm_type='instance'):
-    """Return a normalization layer
-
-    Parameters:
-        norm_type (str) -- the name of the normalization layer: batch | instance | none
-
-    For BatchNorm, we use learnable affine parameters and track running statistics (mean/stddev).
-    For InstanceNorm, we do not use learnable affine parameters. We do not track running statistics.
-    """
-    if norm_type == 'batch':
-        norm_layer = functools.partial(nn.BatchNorm2d, affine=True, track_running_stats=True)
-    elif norm_type == 'instance':
-        norm_layer = functools.partial(nn.InstanceNorm2d, affine=False, track_running_stats=False)
-    elif norm_type == 'none':
-        norm_layer = None
-    else:
-        raise NotImplementedError('normalization layer [%s] is not found' % norm_type)
-    return norm_layer
 
 
 def get_scheduler(optimizer, opt):
@@ -209,14 +188,10 @@ class UnetSkipConnectionBlock(nn.Module):
         """
         super(UnetSkipConnectionBlock, self).__init__()
         self.outermost = outermost
-        if type(norm_layer) == functools.partial:
-            use_bias = norm_layer.func == nn.InstanceNorm2d
-        else:
-            use_bias = norm_layer == nn.InstanceNorm2d
         if input_nc is None:
             input_nc = outer_nc
         downconv = nn.Conv2d(input_nc, inner_nc, kernel_size=4,
-                             stride=2, padding=1, bias=use_bias)
+                             stride=2, padding=1, bias=False)
         downrelu = nn.LeakyReLU(0.2, True)
         downnorm = norm_layer(inner_nc)
         uprelu = nn.ReLU(True)
@@ -232,14 +207,14 @@ class UnetSkipConnectionBlock(nn.Module):
         elif innermost:
             upconv = nn.ConvTranspose2d(inner_nc, outer_nc,
                                         kernel_size=4, stride=2,
-                                        padding=1, bias=use_bias)
+                                        padding=1, bias=False)
             down = [downrelu, downconv]
             up = [uprelu, upconv, upnorm]
             model = down + up
         else:
             upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc,
                                         kernel_size=4, stride=2,
-                                        padding=1, bias=use_bias)
+                                        padding=1, bias=False)
             down = [downrelu, downconv, downnorm]
             up = [uprelu, upconv, upnorm]
 
@@ -270,11 +245,6 @@ class NLayerDiscriminator(nn.Module):
             norm_layer      -- normalization layer
         """
         super(NLayerDiscriminator, self).__init__()
-        if type(norm_layer) == functools.partial:  # no need to use bias as BatchNorm2d has affine parameters
-            use_bias = norm_layer.func != nn.BatchNorm2d
-        else:
-            use_bias = norm_layer != nn.BatchNorm2d
-
         kw = 4
         padw = 1
         sequence = [nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw), nn.LeakyReLU(0.2, True)]
@@ -284,7 +254,7 @@ class NLayerDiscriminator(nn.Module):
             nf_mult_prev = nf_mult
             nf_mult = min(2 ** n, 8)
             sequence += [
-                nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=2, padding=padw, bias=use_bias),
+                nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=2, padding=padw, bias=False),
                 norm_layer(ndf * nf_mult),
                 nn.LeakyReLU(0.2, True)
             ]
@@ -292,7 +262,7 @@ class NLayerDiscriminator(nn.Module):
         nf_mult_prev = nf_mult
         nf_mult = min(2 ** n_layers, 8)
         sequence += [
-            nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=1, padding=padw, bias=use_bias),
+            nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=1, padding=padw, bias=False),
             norm_layer(ndf * nf_mult),
             nn.LeakyReLU(0.2, True)
         ]
@@ -350,14 +320,13 @@ class ColorizationModel():
         self.image_paths = []
         self.metric = 0  # used for learning rate policy 'plateau'
 
-        _norm_layer = get_norm_layer(norm_type='batch')
         self.netG = UnetGenerator(opt.input_nc, opt.output_nc, 8, opt.ngf, 
-                                 norm_layer=_norm_layer, use_dropout=True)
+                                 norm_layer=nn.BatchNorm2d, use_dropout=True)
         init_weights(self.netG, init_type='normal', init_gain=0.02)
 
         if self.isTrain:
             self.netD = NLayerDiscriminator(opt.input_nc + opt.output_nc, opt.ndf,
-                                      n_layers=3, norm_layer=_norm_layer)
+                                      n_layers=3, norm_layer=nn.BatchNorm2d)
             init_weights(self.netG, init_type='normal', init_gain=0.02)
 
         if self.isTrain:
@@ -407,7 +376,7 @@ class ColorizationModel():
         """
         if self.isTrain:
             self.schedulers = [get_scheduler(optimizer, opt) for optimizer in self.optimizers]
-        if (not self.isTrain) or (opt.load_epoch > 0):
+        if (not self.isTrain) or (opt.epoch_start > 0):
             load_suffix = 'iter_%d' % opt.load_iter
             self.load_networks(load_suffix)#################TODO
         self.print_networks(opt.verbose)
