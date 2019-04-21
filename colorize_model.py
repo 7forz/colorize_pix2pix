@@ -382,13 +382,6 @@ class ColorizationModel():
             self.load_networks(load_epoch)
         self.print_networks(opt.verbose)
 
-    # def eval(self):
-    #     """Make models eval mode during test time"""
-    #     for name in self.model_names:
-    #         if isinstance(name, str):
-    #             net = getattr(self, 'net' + name)
-    #             net.eval()
-
     def test(self):
         """Forward function used in test time.
 
