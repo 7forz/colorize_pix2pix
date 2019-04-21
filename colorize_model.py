@@ -295,16 +295,9 @@ class ColorizationModel():
         we convert the Lab image 'fake_B' (inherited from Pix2pixModel) to a RGB image 'fake_B_rgb'.
         """
         self.opt = opt
-
-        # set some params###########TODO
-        opt.ngf = 64
-        opt.ndf = 64
-
         self.gpu = opt.gpu
         self.isTrain = opt.isTrain
         self.save_dir = './checkpoints'  # save all the checkpoints to save_dir
-        if opt.preprocess != 'scale_width':  # with [scale_width], input images might have different sizes, which hurts the performance of cudnn.benchmark.
-            torch.backends.cudnn.benchmark = True
 
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
         self.loss_names = ['G_GAN', 'G_L1', 'D_real', 'D_fake']
@@ -322,14 +315,16 @@ class ColorizationModel():
 
         self.netG = UnetGenerator(opt.input_nc, opt.output_nc, 8, opt.ngf, 
                                  norm_layer=nn.BatchNorm2d, use_dropout=True)
-        init_weights(self.netG, init_type='normal', init_gain=0.02)
 
         if self.isTrain:
+            # no need to init when test, because load weights instead
+            init_weights(self.netG, init_type='normal', init_gain=0.02)
+            
+            # create discriminator and init
             self.netD = NLayerDiscriminator(opt.input_nc + opt.output_nc, opt.ndf,
                                       n_layers=3, norm_layer=nn.BatchNorm2d)
-            init_weights(self.netG, init_type='normal', init_gain=0.02)
+            init_weights(self.netD, init_type='normal', init_gain=0.02)
 
-        if self.isTrain:
             # define loss functions
             self.criterionGAN = GANLoss(opt.gan_mode)########.type(dtype)TODO
             self.criterionL1 = torch.nn.L1Loss()
@@ -356,6 +351,7 @@ class ColorizationModel():
         self.fake_B = self.netG(self.real_A)  # G(A),  shape (N, 2, H, W)
 
     def optimize_parameters(self):
+        """ generate fake sample, compute loss, get gradients and update network weights """
         self.colorize()                  # compute fake images: G(A)
         # update D
         self.set_requires_grad(self.netD, True)  # enable backprop for D
@@ -376,26 +372,31 @@ class ColorizationModel():
         """
         if self.isTrain:
             self.schedulers = [get_scheduler(optimizer, opt) for optimizer in self.optimizers]
-        if (not self.isTrain) or (opt.epoch_start > 0):
-            load_suffix = 'iter_%d' % opt.load_iter
-            self.load_networks(load_suffix)#################TODO
+        if (self.isTrain) and (opt.epoch_start > 0):  # continue training
+            self.load_networks(opt.epoch_start)
+        if not self.isTrain:  # test mode
+            if opt.load_epoch == -1:  # default load t
+                with open(os.path.join(self.save_dir, 'latest_epoch')) as f:
+                    load_epoch = f.read().strip()
+            print('will load epoch %d for testing' % load_epoch)
+            self.load_networks(load_epoch)
         self.print_networks(opt.verbose)
 
-    def eval(self):
-        """Make models eval mode during test time"""
-        for name in self.model_names:
-            if isinstance(name, str):
-                net = getattr(self, 'net' + name)
-                net.eval()
+    # def eval(self):
+    #     """Make models eval mode during test time"""
+    #     for name in self.model_names:
+    #         if isinstance(name, str):
+    #             net = getattr(self, 'net' + name)
+    #             net.eval()
 
     def test(self):
         """Forward function used in test time.
 
-        This function wraps <forward> function in no_grad() so we don't save intermediate steps for backprop
+        This function wraps <colorize> function in no_grad() so we don't save intermediate steps for backprop
         It also calls <compute_visuals> to produce additional visualization results
         """
         with torch.no_grad():
-            self.forward()
+            self.colorize()
             self.compute_visuals()
 
     def compute_visuals(self):
@@ -425,7 +426,7 @@ class ColorizationModel():
             visual_ret[name] = getattr(self, name)
         return visual_ret
 
-    def save_current_results(self, visuals, epoch):############TODO
+    def save_current_results(self, visuals, epoch=None, isTrain=True, prefix=''):
         """ save visualization image to file """
         for label, image in visuals.items():
             image_numpy = util.tensor2im(image)
@@ -436,7 +437,10 @@ class ColorizationModel():
                 label_new = 'original'
             elif label == 'fake_B_rgb':
                 label_new = 'colorized'
-            img_path = os.path.join('./train_result', 'epoch%.3d_%s.jpg' % (epoch, label_new))
+            if isTrain:
+                img_path = os.path.join('./train_result', 'epoch%.3d_%s.jpg' % (epoch, label_new))
+            else:  # test mode, original file name as prefix
+                img_path = os.path.join('./test_result', '%s_%s.jpg' % (prefix, label_new))
             util.save_image(image_numpy, img_path)
 
     def get_current_losses(self):
@@ -462,6 +466,10 @@ class ColorizationModel():
             else:
                 torch.save(net.state_dict(), save_path)
 
+        with open(os.path.join(self.save_dir, 'latest_epoch'), 'w') as f:
+            f.write(str(epoch))  # record the lastest epoch number for testing
+        print('=======SAVING EPOCH %d SUCCESS=======' % epoch)
+
     def load_networks(self, epoch):
         """Load all the networks from the disk.
 
@@ -469,22 +477,19 @@ class ColorizationModel():
             epoch (int) -- current epoch; used in the file name '%s_net_%s.pth' % (epoch, name)
         """
         for name in self.model_names:
-            if isinstance(name, str):
-                load_filename = '%s_net_%s.pth' % (epoch, name)
-                load_path = os.path.join(self.save_dir, load_filename)
-                net = getattr(self, 'net' + name)
-                if isinstance(net, torch.nn.DataParallel):
-                    net = net.module
-                print('loading the model from %s' % load_path)
-                if self.gpu:
-                    state_dict = torch.load(load_path,
-                                            map_location=lambda storage, loc: storage.cuda)
-                else:
-                    state_dict = torch.load(load_path,
-                                            map_location=lambda storage, loc: storage)
-                if hasattr(state_dict, '_metadata'):
-                    del state_dict._metadata
-                net.load_state_dict(state_dict)
+            load_filename = '%s_net_%s.pth' % (epoch, name)
+            load_path = os.path.join(self.save_dir, load_filename)
+            net = getattr(self, 'net' + name)
+            if isinstance(net, torch.nn.DataParallel):
+                net = net.module
+            print('loading the model from %s' % load_path)
+            if self.gpu:
+                state_dict = torch.load(load_path,
+                                        map_location=lambda storage, loc: storage.cuda)
+            else:
+                state_dict = torch.load(load_path,
+                                        map_location=lambda storage, loc: storage)
+            net.load_state_dict(state_dict)
 
     def print_networks(self, verbose):
         """Print the total number of parameters in the network and (if verbose) network architecture

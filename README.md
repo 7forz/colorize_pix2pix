@@ -1,18 +1,26 @@
 
-Requirements
-pytorch
-torchvision
-pillow
-skimage
+# Colorize-pix2pix
 
-This is a mini project for a machine learning course. Try to understand, reconstruct and simplify https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix . Still work in progress..
+This is a mini project for a machine learning course. To understand, reconstruct and simplify the [pix2pix](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix) project for colorization. Still work in progress..
 
-Usage
+# Requirements
+- pytorch
+- torchvision
+- pillow
+- skimage
 
-training
+# Usage
 
-python3 train.py --dataroot ./datasets/colorization_train --print_every 5
+### training
+`python3 train.py --dataroot ./datasets/train --gpu`
 
-testing
+### continue training
+`python3 train.py --dataroot ./datasets/train --epoch_start 30 --gpu`
 
-python3 test.py --blablabla
+### testing
+`python3 test.py --dataroot ./datasets/test`
+
+### help
+`python3 train.py -h`
+
+`python3 train.py -h`

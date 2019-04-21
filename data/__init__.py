@@ -73,8 +73,6 @@ class CustomDatasetDataLoader():
         opt.output_nc = 2
         opt.direction = 'AtoB'
         opt.preprocess = 'resize_and_crop'
-        opt.no_flip = False
-        opt.serial_batches = False
 
         dataset_class = find_dataset_using_name('colorization')
         self.dataset = dataset_class(opt)
