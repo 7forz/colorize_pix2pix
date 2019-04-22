@@ -1,6 +1,6 @@
 __pycache__/
 .vscode/
-checkpoints/
+checkpoint/
 train_result/
 test_result/
 datasets/

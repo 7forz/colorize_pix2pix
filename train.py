@@ -46,7 +46,7 @@ if __name__ == '__main__':
 
     # create folder for intermediate training results, and model dumping
     util.mkdir('train_result')
-    util.mkdir('checkpoints')
+    util.mkdir('checkpoint')
 
     # create model
     model = ColorizationModel(args)

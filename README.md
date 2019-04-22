@@ -1,4 +1,3 @@
-
 # Colorize-pix2pix
 
 This is a mini project for a machine learning course. To understand, reconstruct and simplify the [pytorch-CycleGAN-and-pix2pix](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix) project for colorization. Still work in progress..
@@ -10,6 +9,9 @@ This is a mini project for a machine learning course. To understand, reconstruct
 - skimage
 
 # Usage
+
+### datasets
+Place your datasets in datasets/ directory, and pass it to *dataroot* parameter when train/test
 
 ### training
 `python3 train.py --dataroot ./datasets/train --gpu`

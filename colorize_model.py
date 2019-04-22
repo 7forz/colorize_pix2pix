@@ -296,7 +296,7 @@ class ColorizationModel():
         """
         self.opt = opt
         self.isTrain = opt.isTrain
-        self.save_dir = './checkpoints'  # save all the checkpoints to save_dir
+        self.save_dir = './checkpoint'  # save all the checkpoints to save_dir
 
         self.gpu = opt.gpu
         if self.gpu:
