@@ -295,9 +295,15 @@ class ColorizationModel():
         we convert the Lab image 'fake_B' (inherited from Pix2pixModel) to a RGB image 'fake_B_rgb'.
         """
         self.opt = opt
-        self.gpu = opt.gpu
         self.isTrain = opt.isTrain
         self.save_dir = './checkpoints'  # save all the checkpoints to save_dir
+
+        self.gpu = opt.gpu
+        if self.gpu:
+            assert torch.cuda.is_available(), 'ERROR: your GPU seems not working'
+            self.dtype = torch.cuda.FloatTensor
+        else:
+            self.dtype = torch.FloatTensor
 
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
         self.loss_names = ['G_GAN', 'G_L1', 'D_real', 'D_fake']
@@ -314,7 +320,7 @@ class ColorizationModel():
         self.metric = 0  # used for learning rate policy 'plateau'
 
         self.netG = UnetGenerator(opt.input_nc, opt.output_nc, 8, opt.ngf, 
-                                 norm_layer=nn.BatchNorm2d, use_dropout=True)
+                                  norm_layer=nn.BatchNorm2d, use_dropout=True).type(self.dtype)
 
         if self.isTrain:
             # no need to init when test, because load weights instead
@@ -322,12 +328,12 @@ class ColorizationModel():
             
             # create discriminator and init
             self.netD = NLayerDiscriminator(opt.input_nc + opt.output_nc, opt.ndf,
-                                      n_layers=3, norm_layer=nn.BatchNorm2d)
+                                            n_layers=3, norm_layer=nn.BatchNorm2d).type(self.dtype)
             init_weights(self.netD, init_type='normal', init_gain=0.02)
 
             # define loss functions
-            self.criterionGAN = GANLoss(opt.gan_mode)########.type(dtype)TODO
-            self.criterionL1 = torch.nn.L1Loss()
+            self.criterionGAN = GANLoss(opt.gan_mode).type(self.dtype)
+            self.criterionL1 = torch.nn.L1Loss().type(self.dtype)
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
             self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr, betas=(0.5, 0.999))
             self.optimizer_D = torch.optim.Adam(self.netD.parameters(), lr=opt.lr, betas=(0.5, 0.999))
@@ -342,8 +348,8 @@ class ColorizationModel():
 
         The option 'direction' can be used to swap images in domain A and domain B.
         """
-        self.real_A = input['A']########.type(dtype) TODO # gray scale, shape (N, 1, H, W)
-        self.real_B = input['B']########.type(dtype) TODO # AB, 2 channels (N, 2, H, W)
+        self.real_A = input['A'].type(self.dtype)  # gray scale, shape (N, 1, H, W)
+        self.real_B = input['B'].type(self.dtype)  # AB, 2 channels (N, 2, H, W)
         self.image_paths = input['A_paths']
 
     def colorize(self):
@@ -378,7 +384,7 @@ class ColorizationModel():
             if opt.load_epoch == -1:  # default load t
                 with open(os.path.join(self.save_dir, 'latest_epoch')) as f:
                     load_epoch = f.read().strip()
-            print('will load epoch %d for testing' % load_epoch)
+            print('will load epoch %s for testing' % load_epoch)
             self.load_networks(load_epoch)
         self.print_networks(opt.verbose)
 
@@ -453,11 +459,7 @@ class ColorizationModel():
             save_filename = '%s_net_%s.pth' % (epoch, name)
             save_path = os.path.join(self.save_dir, save_filename)
             net = getattr(self, 'net' + name)
-
-            if self.gpu:
-                torch.save(net.module.cpu().state_dict(), save_path)
-            else:
-                torch.save(net.state_dict(), save_path)
+            torch.save(net.state_dict(), save_path)
 
         with open(os.path.join(self.save_dir, 'latest_epoch'), 'w') as f:
             f.write(str(epoch))  # record the lastest epoch number for testing
@@ -476,12 +478,7 @@ class ColorizationModel():
             if isinstance(net, torch.nn.DataParallel):
                 net = net.module
             print('loading the model from %s' % load_path)
-            if self.gpu:
-                state_dict = torch.load(load_path,
-                                        map_location=lambda storage, loc: storage.cuda)
-            else:
-                state_dict = torch.load(load_path,
-                                        map_location=lambda storage, loc: storage)
+            state_dict = torch.load(load_path)
             net.load_state_dict(state_dict)
 
     def print_networks(self, verbose):

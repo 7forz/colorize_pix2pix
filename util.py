@@ -15,10 +15,10 @@ def tensor2im(input_image, imtype=np.uint8):
         imtype (type)        --  the desired type of the converted numpy array
     """
     if not isinstance(input_image, np.ndarray):
-        if isinstance(input_image, torch.Tensor):  # get the data from a variable
-            image_tensor = input_image.data
-        else:
-            return input_image#############TODO GPU?
+        # if isinstance(input_image, torch.Tensor):  # get the data from a variable
+        image_tensor = input_image.data
+        # else:
+        #     return input_image#############TODO GPU?
         image_numpy = image_tensor[0].cpu().float().numpy()  # convert it into a numpy array
         if image_numpy.shape[0] == 1:  # grayscale to RGB
             image_numpy = np.tile(image_numpy, (3, 1, 1))  # repeat the first dimension 3 times, others not change
