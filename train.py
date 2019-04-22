@@ -22,12 +22,12 @@ if __name__ == '__main__':
     parser.add_argument('--ndf', type=int, default=64, help='# of discrim filters in the first conv layer')
     parser.add_argument('--lr', type=float, default=0.0002, help='initial learning rate for adam')
     parser.add_argument('--max_dataset_size', type=int, default=float("inf"), help='Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded.')
-    parser.add_argument('--epoch_fixed_num', default=30, type=int, help='# of epoch at fixed learning rate')
-    parser.add_argument('--epoch_dacay_num', default=30, type=int, help='# of epoch to linearly decay learning rate to zero')
+    parser.add_argument('--epoch_fixed_num', default=10, type=int, help='# of epoch at fixed learning rate')
+    parser.add_argument('--epoch_dacay_num', default=10, type=int, help='# of epoch to linearly decay learning rate to zero')
     parser.add_argument('--no_flip', action='store_true', help='if specified, do not flip the images for data augmentation')
     parser.add_argument('--serial_batches', action='store_true', help='if true, takes images in order to make batches, otherwise takes them randomly')
-    parser.add_argument('--print_every_iters', default=100, type=int, help='frequency of showing training results on console')
-    parser.add_argument('--save_every_epoch', type=int, default=5, help='frequency of saving checkpoints at the end of epochs')
+    parser.add_argument('--print_every_iters', default=500, type=int, help='frequency of showing training on console and saving training images')
+    parser.add_argument('--save_every_epoch', type=int, default=2, help='frequency of saving checkpoints at the end of epochs')
     parser.add_argument('--lambda_L1', type=float, default=100.0, help='weight for L1 loss')
     parser.add_argument('--lr_policy', type=str, default='linear', help='learning rate policy. [linear | step | plateau | cosine]')
     parser.add_argument('--epoch_start', type=int, default=0, help='staring epoch # to train, if positive, try to load saved models')    
@@ -47,6 +47,8 @@ if __name__ == '__main__':
     # create folder for intermediate training results, and model dumping
     util.mkdir('train_result')
     util.mkdir('checkpoint')
+    with open('./train_result/loss_history.csv', 'w') as f:
+        f.write('iter,G_GAN,G_L1,D_real,D_fake\n')
 
     # create model
     model = ColorizationModel(args)
@@ -74,6 +76,9 @@ if __name__ == '__main__':
 
                 losses = model.get_current_losses()
                 print('epoch', epoch, ', iter', epoch_iter, ', loss:', losses)
+                with open('./train_result/loss_history.csv', 'a') as f:  # save the loss data to file
+                    f.write('%s,' % total_iters)
+                    f.write('%(G_GAN)s,%(G_L1)s,%(D_real)s,%(D_fake)s\n' % losses)
 
         if (epoch > 0) and epoch % args.save_every_epoch == 0:  # save results every x epochs
             print('saving the model at the end of epoch %d, total iters: %d' % (epoch, total_iters))
