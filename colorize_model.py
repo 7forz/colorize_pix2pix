@@ -384,6 +384,8 @@ class ColorizationModel():
             if opt.load_epoch == -1:  # default load t
                 with open(os.path.join(self.save_dir, 'latest_epoch')) as f:
                     load_epoch = f.read().strip()
+            else:
+                load_epoch = opt.load_epoch
             print('will load epoch %s for testing' % load_epoch)
             self.load_networks(load_epoch)
         self.print_networks(opt.verbose)
@@ -478,7 +480,7 @@ class ColorizationModel():
             if isinstance(net, torch.nn.DataParallel):
                 net = net.module
             print('loading the model from %s' % load_path)
-            state_dict = torch.load(load_path)
+            state_dict = torch.load(load_path, map_location='cuda:0' if self.gpu else 'cpu')
             net.load_state_dict(state_dict)
 
     def print_networks(self, verbose):
