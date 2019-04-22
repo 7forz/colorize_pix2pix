@@ -20,7 +20,7 @@ Place your datasets in datasets/ directory, and pass it to *dataroot* parameter 
 `python3 train.py --dataroot ./datasets/train --epoch_start 30 --gpu`
 
 ### testing
-`python3 test.py --dataroot ./datasets/test`
+`python3 test.py --dataroot ./datasets/test --gpu`
 
 ### help
 `python3 train.py -h`
