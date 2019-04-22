@@ -80,7 +80,8 @@ class CustomDatasetDataLoader():
         self.dataloader = torch.utils.data.DataLoader(
             self.dataset,
             batch_size=opt.batch_size,
-            shuffle=not opt.serial_batches)
+            shuffle=not opt.serial_batches,
+            num_workers=4)  # note that adding num_workers param will fail some debugging tools
 
     def __len__(self):
         """Return the number of data in the dataset"""
