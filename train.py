@@ -16,6 +16,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataroot', required=True, help='path to images')
     parser.add_argument('--gan_mode', type=str, default='vanilla', help='the type of GAN objective, [vanilla| lsgan]')
     parser.add_argument('--gpu', action='store_true', help='whether to use gpu')
+    parser.add_argument('--preprocess', type=str, default='resize_and_crop', help='scaling and cropping of images at load time [resize_and_crop | crop | scale_width | scale_width_and_crop | none]')
     parser.add_argument('--load_size', type=int, default=286, help='scale images to this size')
     parser.add_argument('--crop_size', type=int, default=256, help='then crop to this size')
     parser.add_argument('--ngf', type=int, default=64, help='# of gen filters in the last conv layer')

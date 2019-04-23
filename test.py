@@ -18,10 +18,11 @@ if __name__ == '__main__':
     parser.add_argument('--ngf', type=int, default=64, help='# of gen filters in the last conv layer, should be the same as training?')
     parser.add_argument('--ndf', type=int, default=64, help='# of discrim filters in the first conv layer, should be the same as training?')
     parser.add_argument('--gpu', action='store_true', help='whether to use gpu')
+    parser.add_argument('--preprocess', type=str, default='resize_and_crop', help='scaling and cropping of images at load time [resize_and_crop | crop | scale_width | scale_width_and_crop | none]')
+    parser.add_argument('--load_size', type=int, default=256, help='scale images to this size')
+    parser.add_argument('--crop_size', type=int, default=256, help='then crop to this size')
     args = parser.parse_args()
 
-    args.load_size = 256  ########TODO may affect output size????
-    args.crop_size = args.load_size########TODO may affect output size????
     args.max_dataset_size = float('inf')
     args.batch_size = 1    # test code only supports batch_size = 1
     args.no_flip = True    # no flip; comment this line if results on flipped images are needed.
