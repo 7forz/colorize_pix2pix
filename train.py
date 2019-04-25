@@ -53,6 +53,9 @@ if __name__ == '__main__':
     util.mkdir('checkpoint')
     with open('./train_result/loss_history.csv', 'w') as f:
         f.write('iter,G_GAN,G_L1,D_real,D_fake\n')
+    with open('./checkpoint/train_params.txt', 'w') as f:  # record time and parameters
+        f.write('%s\n' % time.ctime())
+        f.write('%s\n' % args)
 
     # create model
     model = ColorizationModel(args)
