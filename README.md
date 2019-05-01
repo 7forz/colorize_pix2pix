@@ -5,8 +5,8 @@ This is a mini project for a machine learning course. To understand, reconstruct
 # Requirements
 - pytorch
 - torchvision
-- pillow
-- skimage
+- Pillow
+- scikit-image
 
 # Usage
 

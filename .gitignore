@@ -4,3 +4,4 @@ checkpoint/
 train_result/
 test_result/
 datasets/
+*.txt
