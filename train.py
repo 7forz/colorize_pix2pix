@@ -15,15 +15,16 @@ if __name__ == '__main__':
     parser.add_argument('--dataroot', required=True, help='path to images')
     parser.add_argument('--gpu', action='store_true', help='whether to use gpu')
 
-    parser.add_argument('--preprocess', type=str, default='resize_and_crop', help='scaling and cropping of images at load time [resize_and_crop | crop | scale_width | scale_width_and_crop | none]')#scale_width seems have problem?
-    parser.add_argument('--load_size', type=int, default=286, help='scale images to this size')
+    parser.add_argument('--preprocess', type=str, default='resize_and_crop', help='scaling and cropping of images at load time [resize_and_crop | crop | scale_width | scale_width_and_crop | none]')
+    parser.add_argument('--load_size', type=int, default=300, help='scale images to this size')
     parser.add_argument('--crop_size', type=int, default=256, help='then crop to this size')
     parser.add_argument('--max_dataset_size', type=int, default=float("inf"), help='Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded.')
     parser.add_argument('--batch_size', default=1, type=int, help='batch size for training')
     parser.add_argument('--no_flip', action='store_true', help='if specified, do not flip the images for data augmentation')
     parser.add_argument('--serial_batches', action='store_true', help='if true, takes images in order to make batches, otherwise takes them randomly')
-    
+
     parser.add_argument('--gan_mode', type=str, default='vanilla', help='the type of GAN objective, [vanilla| lsgan]')
+    parser.add_argument('--net_d', type=str, default='default', help='the discriminator network, [default | ours]')
     parser.add_argument('--ngf', type=int, default=64, help='# of gen filters in the last conv layer')
     parser.add_argument('--ndf', type=int, default=64, help='# of discrim filters in the first conv layer')
     parser.add_argument('--lr', type=float, default=0.0002, help='initial learning rate for adam')

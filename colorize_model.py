@@ -240,21 +240,20 @@ class NLayerDiscriminator(nn.Module):
 
         Parameters:
             input_nc (int)  -- the number of channels in input images
-            ndf (int)       -- the number of filters in the last conv layer
+            ndf (int)       -- the number of filters in the first conv layer
             n_layers (int)  -- the number of conv layers in the discriminator
             norm_layer      -- normalization layer
         """
         super(NLayerDiscriminator, self).__init__()
-        kw = 4
-        padw = 1
-        sequence = [nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw), nn.LeakyReLU(0.2, True)]
+
+        sequence = [nn.Conv2d(input_nc, ndf, kernel_size=4, stride=2, padding=1), nn.LeakyReLU(0.2, True)]
         nf_mult = 1
         nf_mult_prev = 1
-        for n in range(1, n_layers):  # gradually increase the number of filters
+        for n in range(1, n_layers):  # gradually increase the number of filters, doubles the depth each time
             nf_mult_prev = nf_mult
             nf_mult = min(2 ** n, 8)
             sequence += [
-                nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=2, padding=padw, bias=False),
+                nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=4, stride=2, padding=1, bias=False),
                 norm_layer(ndf * nf_mult),
                 nn.LeakyReLU(0.2, True)
             ]
@@ -262,17 +261,44 @@ class NLayerDiscriminator(nn.Module):
         nf_mult_prev = nf_mult
         nf_mult = min(2 ** n_layers, 8)
         sequence += [
-            nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=1, padding=padw, bias=False),
+            nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=4, stride=1, padding=1, bias=False),
             norm_layer(ndf * nf_mult),
             nn.LeakyReLU(0.2, True)
         ]
 
-        sequence += [nn.Conv2d(ndf * nf_mult, 1, kernel_size=kw, stride=1, padding=padw)]  # output 1 channel prediction map
+        sequence += [nn.Conv2d(ndf * nf_mult, 1, kernel_size=4, stride=1, padding=1)]  # output 1 channel prediction map
         self.model = nn.Sequential(*sequence)
 
     def forward(self, input):
         """Standard forward."""
         return self.model(input)
+
+
+def get_our_discriminator():
+    return nn.Sequential(
+        nn.Conv2d(3, 64, kernel_size=4, stride=2, padding=1),  # 1/2 original size
+        nn.BatchNorm2d(64),
+        nn.LeakyReLU(0.2, True),
+        nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),   # 1/4 original size
+        nn.BatchNorm2d(128),
+        nn.LeakyReLU(0.2, True),
+        nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=0),   # 1/4 - 2 original size
+        nn.BatchNorm2d(256),
+        nn.LeakyReLU(0.2, True),
+        nn.Conv2d(256, 512, kernel_size=3, stride=1, padding=0),   # 1/4 - 4 original size
+        nn.BatchNorm2d(512),
+        nn.LeakyReLU(0.2, True),
+        nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=0),   # 1/4 - 6 original size
+        nn.BatchNorm2d(512),
+        nn.LeakyReLU(0.2, True),
+        nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=0),   # 1/4 - 8 original size
+        nn.BatchNorm2d(512),
+        nn.LeakyReLU(0.2, True),
+        nn.Conv2d(512, 256, kernel_size=3, stride=1, padding=0),   # 1/4 - 10 original size
+        nn.BatchNorm2d(256),
+        nn.LeakyReLU(0.2, True),
+        nn.Conv2d(256, 1, kernel_size=4, stride=2, padding=0)  # (1/4 - 14)/2+1 original size, should be 26
+    )
 
 
 class ColorizationModel():
@@ -281,7 +307,7 @@ class ColorizationModel():
         The model training requires '--dataset_mode aligned' dataset.
         By default, it uses a '--netG unet256' U-Net generator,
         a '--netD basic' discriminator (PatchGAN),
-        and a '--gan_mode' vanilla GAN loss (the cross-entropy objective used in the orignal GAN paper).
+        and a vanilla GAN loss (the cross-entropy objective used in the orignal GAN paper).
 
         pix2pix paper: https://arxiv.org/pdf/1611.07004.pdf
         
@@ -319,16 +345,21 @@ class ColorizationModel():
         self.image_paths = []
         self.metric = 0  # used for learning rate policy 'plateau'
 
-        self.netG = UnetGenerator(opt.input_nc, opt.output_nc, 8, opt.ngf, 
+        self.netG = UnetGenerator(opt.input_nc, opt.output_nc, num_downs=8, ngf=opt.ngf, 
                                   norm_layer=nn.BatchNorm2d, use_dropout=True).type(self.dtype)
 
         if self.isTrain:
-            # no need to init when test, because load weights instead
+            # no need to init any weight when test, because weights are loaded instead
             init_weights(self.netG, init_type='normal', init_gain=0.02)
-            
+
             # create discriminator and init
-            self.netD = NLayerDiscriminator(opt.input_nc + opt.output_nc, opt.ndf,
-                                            n_layers=3, norm_layer=nn.BatchNorm2d).type(self.dtype)
+            if opt.net_d == 'default':
+                self.netD = NLayerDiscriminator(opt.input_nc + opt.output_nc, opt.ndf,
+                                                n_layers=3, norm_layer=nn.BatchNorm2d).type(self.dtype)
+            elif opt.net_d == 'ours':
+                self.netD = get_our_discriminator().type(self.dtype)
+            else:
+                raise RuntimeError('net_d parameter error!')
             init_weights(self.netD, init_type='normal', init_gain=0.02)
 
             # define loss functions
@@ -364,6 +395,7 @@ class ColorizationModel():
         self.optimizer_D.zero_grad()     # set D's gradients to zero
         self.backward_D()                # calculate gradients for D
         self.optimizer_D.step()          # update D's weights
+
         # update G
         self.set_requires_grad(self.netD, False)  # D requires no gradients when optimizing G (see the GAN formula)
         self.optimizer_G.zero_grad()        # set G's gradients to zero
@@ -430,7 +462,6 @@ class ColorizationModel():
     def save_current_results(self, visuals, epoch=None, isTrain=True, prefix=''):
         """ save visualization image to file """
         for label, image in visuals.items():
-            image_numpy = util.tensor2im(image)
             # make better understanding file names
             if label == 'real_A':
                 label_new = 'BW'
@@ -438,10 +469,12 @@ class ColorizationModel():
                 label_new = 'original'
             elif label == 'fake_B_rgb':
                 label_new = 'colorized'
+
             if isTrain:
                 img_path = os.path.join('./train_result', 'epoch%.3d_%s.jpg' % (epoch, label_new))
             else:  # test mode, original file name as prefix
                 img_path = os.path.join('./test_result', '%s_%s.jpg' % (prefix, label_new))
+            image_numpy = util.tensor2im(image)
             util.save_image(image_numpy, img_path)
 
     def get_current_losses(self):
@@ -454,7 +487,7 @@ class ColorizationModel():
     def save_networks(self, epoch):
         """Save all the networks to the disk.
 
-        Parameters:
+        Parameter:
             epoch (int) -- current epoch; used in the file name '%s_net_%s.pth' % (epoch, name)
         """
         for name in self.model_names:
@@ -470,8 +503,8 @@ class ColorizationModel():
     def load_networks(self, epoch):
         """Load all the networks from the disk.
 
-        Parameters:
-            epoch (int) -- current epoch; used in the file name '%s_net_%s.pth' % (epoch, name)
+        Parameter:
+            epoch (int)
         """
         for name in self.model_names:
             load_filename = '%s_net_%s.pth' % (epoch, name)
@@ -520,6 +553,7 @@ class ColorizationModel():
         fake_AB = torch.cat((self.real_A, self.fake_B), 1)  # shape (N, 3, 256, 256)
         pred_fake = self.netD(fake_AB.detach())  # shape (N, 1, H=30, W=30)
         self.loss_D_fake = self.criterionGAN(pred_fake, False)
+
         # Real
         real_AB = torch.cat((self.real_A, self.real_B), 1)  # shape (N, 3, 256, 256)
         pred_real = self.netD(real_AB)  # shape (N, 1, H=30, W=30)
